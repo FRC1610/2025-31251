@@ -1,65 +1,28 @@
 package org.firstinspires.ftc.teamcode;
 
-import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
-import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.FLOAT;
-
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
+
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.external.navigation.YawPitchRollAngles;
+import com.qualcomm.robotcore.util.AngleUnit;
 
 @TeleOp(name="TeleOpMain", group = "Main")
 public class TeleOpMain extends OpMode {
+    private final RobotHardware robot = new RobotHardware();
+    private double targetRpm = Constants.LAUNCHER_DEFAULT_RPM;
+    private boolean launcherRunning = false;
 
-    // Declare OpMode members.
-    private DcMotor leftFrontDrive = null;
-    private DcMotor rightFrontDrive = null;
-    private DcMotor leftBackDrive = null;
-    private DcMotor rightBackDrive = null;
-    private DcMotorEx launcher = null;
-    private DcMotorEx intake = null;
-
-    // Setup a variable for each drive wheel to save power level for telemetry
     double leftFrontPower;
     double rightFrontPower;
     double leftBackPower;
     double rightBackPower;
 
-
     // Code to run ONCE when the driver hits INIT
 
     @Override
     public void init() {
-
-        // Configure Hardware Map
-        leftFrontDrive = hardwareMap.get(DcMotorEx.class, "left_front_drive");
-        rightFrontDrive = hardwareMap.get(DcMotorEx.class, "right_front_drive");
-        leftBackDrive = hardwareMap.get(DcMotorEx.class, "left_back_drive");
-        rightBackDrive = hardwareMap.get(DcMotorEx.class, "right_back_drive");
-        launcher = hardwareMap.get(DcMotorEx.class, "launcher");
-        intake = hardwareMap.get(DcMotorEx.class, "intake");
-
-        // Set motor directions
-        leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
-        leftBackDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightBackDrive.setDirection(DcMotor.Direction.FORWARD);
-
-        // Configure motor encoders
-        leftFrontDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        rightFrontDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        leftBackDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        rightBackDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        // Set motor brake/coast
-        leftFrontDrive.setZeroPowerBehavior(BRAKE);
-        rightFrontDrive.setZeroPowerBehavior(BRAKE);
-        leftBackDrive.setZeroPowerBehavior(BRAKE);
-        rightBackDrive.setZeroPowerBehavior(BRAKE);
-        launcher.setZeroPowerBehavior(FLOAT);
-
-        // Tell the driver that initialization is complete.
+        robot.init(hardwareMap);
         telemetry.addData("Status", "Initialized");
     }
 
@@ -71,12 +34,17 @@ public class TeleOpMain extends OpMode {
 
         //Intake
         if (gamepad2.right_bumper){
-            intake.setPower(1);
+            robot.intake.setDirection(DcMotorSimple.Direction.FORWARD);
+            robot.intake.setPower(Constants.INTAKE_FORWARD_SPEED);
         } else if (gamepad2.left_bumper) {
-            intake.setPower(-1);
+            robot.intake.setDirection(DcMotorSimple.Direction.REVERSE);
+            robot.intake.setPower(Constants.INTAKE_REVERSE_SPEED);
         } else {
-            intake.setPower(0);
+            robot.intake.setPower(0);
         }
+
+        handleLauncherControls();
+        reportTelemetry();
     }
 
     void mecanumDrive(double forward, double strafe, double rotate){
@@ -92,10 +60,68 @@ public class TeleOpMain extends OpMode {
         leftBackPower = (forward - strafe + rotate) / denominator;
         rightBackPower = (forward + strafe - rotate) / denominator;
 
-        leftFrontDrive.setPower(leftFrontPower);
-        rightFrontDrive.setPower(rightFrontPower);
-        leftBackDrive.setPower(leftBackPower);
-        rightBackDrive.setPower(rightBackPower);
+        robot.leftFrontDrive.setPower(leftFrontPower);
+        robot.rightFrontDrive.setPower(rightFrontPower);
+        robot.leftBackDrive.setPower(leftBackPower);
+        robot.rightBackDrive.setPower(rightBackPower);
 
+    }
+
+    private void handleLauncherControls() {
+        if (gamepad2.startWasPressed()) {
+            launcherRunning = !launcherRunning;
+            if (launcherRunning) {
+                robot.launcher.setVelocity(rpmToTicksPerSecond(targetRpm));
+            } else {
+                robot.launcher.setPower(0);
+            }
+        }
+
+        gamepad2.startWasReleased();
+
+        if (gamepad2.dpadRightWasPressed()) {
+            targetRpm += Constants.LAUNCHER_RPM_INCREMENT;
+            if (launcherRunning) {
+                robot.launcher.setVelocity(rpmToTicksPerSecond(targetRpm));
+            }
+        }
+
+        if (gamepad2.dpadLeftWasPressed()) {
+            targetRpm = Math.max(0, targetRpm - Constants.LAUNCHER_RPM_INCREMENT);
+            if (launcherRunning) {
+                robot.launcher.setVelocity(rpmToTicksPerSecond(targetRpm));
+            }
+        }
+    }
+
+    private void reportTelemetry() {
+        addLauncherTelemetry();
+        addImuTelemetry();
+        telemetry.update();
+    }
+
+    private void addLauncherTelemetry() {
+        double currentVelocityTicksPerSecond = robot.launcher.getVelocity();
+        double currentRpm = ticksPerSecondToRpm(currentVelocityTicksPerSecond);
+
+        telemetry.addData("Launcher Target RPM", targetRpm);
+        telemetry.addData("Launcher Current RPM", currentRpm);
+        telemetry.addData("Launcher Running", launcherRunning);
+    }
+
+    private void addImuTelemetry() {
+        YawPitchRollAngles orientation = robot.imu.getRobotYawPitchRollAngles();
+
+        telemetry.addData("IMU Heading (deg)", orientation.getYaw(AngleUnit.DEGREES));
+        telemetry.addData("IMU Pitch (deg)", orientation.getPitch(AngleUnit.DEGREES));
+        telemetry.addData("IMU Roll (deg)", orientation.getRoll(AngleUnit.DEGREES));
+    }
+
+    private double rpmToTicksPerSecond(double rpm) {
+        return rpm * Constants.REV_HD_HEX_TICKS_PER_REV / 60.0;
+    }
+
+    private double ticksPerSecondToRpm(double ticksPerSecond) {
+        return (ticksPerSecond / Constants.REV_HD_HEX_TICKS_PER_REV) * 60.0;
     }
 }
