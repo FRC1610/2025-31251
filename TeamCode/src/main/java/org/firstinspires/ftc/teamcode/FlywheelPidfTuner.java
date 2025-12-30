@@ -2,43 +2,35 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-
-@TeleOp(name="TeleOpMain", group = "Main")
-public class TeleOpMain extends OpMode {
+@TeleOp(name = "FlywheelPidfTuner", group = "Test")
+public class FlywheelPidfTuner extends OpMode {
     private final RobotHardware robot = new RobotHardware();
+
     private double targetRpm = Constants.LAUNCHER_DEFAULT_RPM;
     private boolean launcherRunning = false;
 
-    // Code to run ONCE when the driver hits INIT
+    private double pCoefficient = Constants.LAUNCHER_PIDF.p;
+    private double fCoefficient = Constants.LAUNCHER_PIDF.f;
 
     @Override
     public void init() {
         robot.init(hardwareMap);
+        applyPidfCoefficients();
+
         telemetry.addData("Status", "Initialized");
     }
 
-    // Code to run REPEATEDLY after the driver hits START but before they hit STOP
     @Override
     public void loop() {
-        // Drive the robot using the left stick for translation and the right stick for rotation.
-        robot.mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
-
-        // Run the intake forward with the right bumper, reverse with the left bumper, or stop if neither is pressed.
-        if (gamepad2.right_bumper){
-            robot.intake.setDirection(DcMotorSimple.Direction.FORWARD);
-            robot.intake.setPower(Constants.INTAKE_FORWARD_SPEED);
-        } else if (gamepad2.left_bumper) {
-            robot.intake.setDirection(DcMotorSimple.Direction.REVERSE);
-            robot.intake.setPower(Constants.INTAKE_REVERSE_SPEED);
-        } else {
-            robot.intake.setPower(0);
-        }
-
+        // Allow the co-driver to toggle the flywheel and adjust RPM just like in TeleOpMain.
         handleLauncherControls();
+
+        // Use gamepad1 to tune PIDF: P with dpad up/down and feedforward with dpad left/right.
+        handlePidfTuning();
+
+        // Share the current tuning values and launcher state each cycle.
         reportTelemetry();
     }
 
@@ -70,28 +62,46 @@ public class TeleOpMain extends OpMode {
         }
     }
 
-    private void reportTelemetry() {
-        // Send all telemetry to the driver station in a single update each loop.
-        addLauncherTelemetry();
-        addImuTelemetry();
-        telemetry.update();
+    private void handlePidfTuning() {
+        // Adjust feedforward with gamepad1 D-pad left/right in 0.25 increments.
+        if (gamepad1.dpadRightWasPressed()) {
+            fCoefficient += 0.25;
+            applyPidfCoefficients();
+        }
+
+        if (gamepad1.dpadLeftWasPressed()) {
+            fCoefficient = Math.max(0, fCoefficient - 0.25);
+            applyPidfCoefficients();
+        }
+
+        // Adjust proportional gain with gamepad1 D-pad up/down in 0.25 increments.
+        if (gamepad1.dpadUpWasPressed()) {
+            pCoefficient += 0.25;
+            applyPidfCoefficients();
+        }
+
+        if (gamepad1.dpadDownWasPressed()) {
+            pCoefficient = Math.max(0, pCoefficient - 0.25);
+            applyPidfCoefficients();
+        }
     }
 
-    private void addLauncherTelemetry() {
+    private void applyPidfCoefficients() {
+        // Apply the updated PIDF values with I and D set to zero for tuning simplicity.
+        PIDFCoefficients updatedCoefficients = new PIDFCoefficients(pCoefficient, 0.0, 0.0, fCoefficient);
+        robot.launcher.setPIDFCoefficients(com.qualcomm.robotcore.hardware.DcMotor.RunMode.RUN_USING_ENCODER, updatedCoefficients);
+    }
+
+    private void reportTelemetry() {
         double currentVelocityTicksPerSecond = robot.launcher.getVelocity();
         double currentRpm = ticksPerSecondToRpm(currentVelocityTicksPerSecond);
 
         telemetry.addData("Launcher Target RPM", targetRpm);
         telemetry.addData("Launcher Current RPM", currentRpm);
         telemetry.addData("Launcher Running", launcherRunning);
-    }
-
-    private void addImuTelemetry() {
-        YawPitchRollAngles orientation = robot.imu.getRobotYawPitchRollAngles();
-
-        telemetry.addData("IMU Heading (deg)", orientation.getYaw(AngleUnit.DEGREES));
-        telemetry.addData("IMU Pitch (deg)", orientation.getPitch(AngleUnit.DEGREES));
-        telemetry.addData("IMU Roll (deg)", orientation.getRoll(AngleUnit.DEGREES));
+        telemetry.addData("P Gain", pCoefficient);
+        telemetry.addData("F Gain", fCoefficient);
+        telemetry.update();
     }
 
     private double rpmToTicksPerSecond(double rpm) {

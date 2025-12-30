@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 public class RobotHardware {
     public DcMotorEx leftFrontDrive;
@@ -51,5 +52,40 @@ public class RobotHardware {
                 Constants.IMU_LOGO_FACING_DIRECTION,
                 Constants.IMU_USB_FACING_DIRECTION
         )));
+    }
+
+    public void mecanumDrive(double forward, double strafe, double rotate) {
+        double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
+
+        double leftFrontPower = (forward + strafe + rotate) / denominator;
+        double rightFrontPower = (forward - strafe - rotate) / denominator;
+        double leftBackPower = (forward - strafe + rotate) / denominator;
+        double rightBackPower = (forward + strafe - rotate) / denominator;
+
+        leftFrontDrive.setPower(leftFrontPower);
+        rightFrontDrive.setPower(rightFrontPower);
+        leftBackDrive.setPower(leftBackPower);
+        rightBackDrive.setPower(rightBackPower);
+    }
+
+    public void fieldCentricDrive(double forward, double strafe, double rotate) {
+        double headingRadians = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+
+        double rotatedX = strafe * Math.cos(headingRadians) + forward * Math.sin(headingRadians);
+        double rotatedY = -strafe * Math.sin(headingRadians) + forward * Math.cos(headingRadians);
+
+        mecanumDrive(rotatedY, rotatedX, rotate);
+    }
+
+    public void resetDriveEncoders() {
+        setDriveMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        setDriveMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    public void setDriveMode(DcMotor.RunMode mode) {
+        leftFrontDrive.setMode(mode);
+        rightFrontDrive.setMode(mode);
+        leftBackDrive.setMode(mode);
+        rightBackDrive.setMode(mode);
     }
 }
