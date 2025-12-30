@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 public class RobotHardware {
     public DcMotorEx leftFrontDrive;
@@ -65,6 +66,15 @@ public class RobotHardware {
         rightFrontDrive.setPower(rightFrontPower);
         leftBackDrive.setPower(leftBackPower);
         rightBackDrive.setPower(rightBackPower);
+    }
+
+    public void fieldCentricDrive(double forward, double strafe, double rotate) {
+        double headingRadians = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+
+        double rotatedX = strafe * Math.cos(headingRadians) + forward * Math.sin(headingRadians);
+        double rotatedY = -strafe * Math.sin(headingRadians) + forward * Math.cos(headingRadians);
+
+        mecanumDrive(rotatedY, rotatedX, rotate);
     }
 
     public void resetDriveEncoders() {
