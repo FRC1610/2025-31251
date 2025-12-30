@@ -13,11 +13,6 @@ public class TeleOpMain extends OpMode {
     private double targetRpm = Constants.LAUNCHER_DEFAULT_RPM;
     private boolean launcherRunning = false;
 
-    double leftFrontPower;
-    double rightFrontPower;
-    double leftBackPower;
-    double rightBackPower;
-
     // Code to run ONCE when the driver hits INIT
 
     @Override
@@ -29,10 +24,10 @@ public class TeleOpMain extends OpMode {
     // Code to run REPEATEDLY after the driver hits START but before they hit STOP
     @Override
     public void loop() {
-        //Drive
-        mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        // Drive the robot using the left stick for translation and the right stick for rotation.
+        robot.mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
-        //Intake
+        // Run the intake forward with the right bumper, reverse with the left bumper, or stop if neither is pressed.
         if (gamepad2.right_bumper){
             robot.intake.setDirection(DcMotorSimple.Direction.FORWARD);
             robot.intake.setPower(Constants.INTAKE_FORWARD_SPEED);
@@ -47,27 +42,8 @@ public class TeleOpMain extends OpMode {
         reportTelemetry();
     }
 
-    void mecanumDrive(double forward, double strafe, double rotate){
-
-        /* the denominator is the largest motor power (absolute value) or 1
-         * This ensures all the powers maintain the same ratio,
-         * but only if at least one is out of the range [-1, 1]
-         */
-        double denominator = Math.max(Math.abs(forward) + Math.abs(strafe) + Math.abs(rotate), 1);
-
-        leftFrontPower = (forward + strafe + rotate) / denominator;
-        rightFrontPower = (forward - strafe - rotate) / denominator;
-        leftBackPower = (forward - strafe + rotate) / denominator;
-        rightBackPower = (forward + strafe - rotate) / denominator;
-
-        robot.leftFrontDrive.setPower(leftFrontPower);
-        robot.rightFrontDrive.setPower(rightFrontPower);
-        robot.leftBackDrive.setPower(leftBackPower);
-        robot.rightBackDrive.setPower(rightBackPower);
-
-    }
-
     private void handleLauncherControls() {
+        // Toggle the launcher on/off with the Start button and apply the current target RPM when turning on.
         if (gamepad2.startWasPressed()) {
             launcherRunning = !launcherRunning;
             if (launcherRunning) {
@@ -77,8 +53,7 @@ public class TeleOpMain extends OpMode {
             }
         }
 
-        gamepad2.startWasReleased();
-
+        // Increase target RPM with D-pad right; if running, update the launcher velocity immediately.
         if (gamepad2.dpadRightWasPressed()) {
             targetRpm += Constants.LAUNCHER_RPM_INCREMENT;
             if (launcherRunning) {
@@ -86,6 +61,7 @@ public class TeleOpMain extends OpMode {
             }
         }
 
+        // Decrease target RPM with D-pad left; if running, update the launcher velocity immediately.
         if (gamepad2.dpadLeftWasPressed()) {
             targetRpm = Math.max(0, targetRpm - Constants.LAUNCHER_RPM_INCREMENT);
             if (launcherRunning) {
@@ -95,6 +71,7 @@ public class TeleOpMain extends OpMode {
     }
 
     private void reportTelemetry() {
+        // Send all telemetry to the driver station in a single update each loop.
         addLauncherTelemetry();
         addImuTelemetry();
         telemetry.update();
