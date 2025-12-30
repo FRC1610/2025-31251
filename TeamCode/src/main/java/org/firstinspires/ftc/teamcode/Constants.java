@@ -7,7 +7,7 @@ public final class Constants {
     // Launcher settings
     public static final double LAUNCHER_DEFAULT_RPM = 3000.0;
     public static final double LAUNCHER_RPM_INCREMENT = 100.0;
-    public static final PIDFCoefficients LAUNCHER_PIDF = new PIDFCoefficients(30.0, 0.0, 5.0, 12.0);
+    public static final PIDFCoefficients LAUNCHER_PIDF = new PIDFCoefficients(30.0, 0.0, 0.0, 12.0);
 
     // Drive and wheel measurements
     public static final double REV_HD_HEX_TICKS_PER_REV = 560.0;
